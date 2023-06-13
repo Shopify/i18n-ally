@@ -6,7 +6,7 @@ import { LanguageId } from '~/utils'
 class LaravelFramework extends Framework {
   id = 'laravel'
   display = 'Laravel'
-  monopoly = true
+  monopoly = false
 
   detection = {
     composerJSON: [

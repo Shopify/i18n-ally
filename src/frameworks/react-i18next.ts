@@ -27,6 +27,12 @@ class ReactI18nextFramework extends Framework {
     'ejs',
   ]
 
+  enabledParsers?: string[] | undefined = [
+    'json',
+    'yaml',
+    'json5',
+  ]
+
   // for visualize the regex, you can use https://regexper.com/
   usageMatchRegex = [
     '\\Wt\\(\\s*[\'"`]({key})[\'"`]',
