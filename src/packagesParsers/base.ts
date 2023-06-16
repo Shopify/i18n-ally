@@ -7,11 +7,11 @@ export abstract class PackageParser {
   static load(root: string) {
     const filepath = `${root}/${this.filename}`
     if (!fs.existsSync(filepath)) {
-      Log.info(`🕳 Packages file "${this.filename}" not exists`)
+      Log.info(`🕳 Packages file "${this.filename}" not exists at "${root}"`)
       return undefined
     }
 
-    Log.info(`📦 Packages file "${this.filename}" found`)
+    Log.info(`📦 Packages file "${this.filename}" found at "${root}"`)
 
     try {
       const raw = this.loadFile(filepath)
@@ -19,7 +19,7 @@ export abstract class PackageParser {
       return data
     }
     catch (err) {
-      Log.info(`⚠ Error on parsing package file "${this.filename}"`)
+      Log.info(`⚠ Error on parsing package file "${this.filename}" at "${root}"`)
     }
 
     return undefined

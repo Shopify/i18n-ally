@@ -9,7 +9,7 @@ import { Global } from '../core/Global'
 import { Log } from './Log'
 
 export async function gitignoredGlob(globStr: string, dir: string) {
-  const root = Global.rootpath
+  const root = Global.workspaceRootPath
   const gitignorePath = join(root, '.gitignore')
   let gitignore = []
   try {

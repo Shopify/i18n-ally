@@ -33,7 +33,7 @@ export class EcmascriptParser extends Parser {
   async load(filepath: string) {
     const loader = path.resolve(Config.extensionPath!, 'assets/loader.js')
     const tsNode = Config.parsersTypescriptTsNodePath
-    const dir = Global.rootpath
+    const dir = Global.workspaceRootPath
     const compilerOptions = {
       importHelpers: false,
       allowJs: true,

@@ -50,7 +50,7 @@ export class Analyst {
   }
 
   private static async enumerateDocumentPaths() {
-    const root = Global.rootpath
+    const root = Global.workspaceRootPath
     const files = await gitignoredGlob(Global.getSupportLangGlob(), root)
     return files.filter(f => !fs.lstatSync(f).isDirectory())
   }

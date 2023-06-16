@@ -1,4 +1,4 @@
-import { extname, resolve } from 'path'
+import path, { extname, resolve } from 'path'
 import { workspace, commands, window, EventEmitter, Event, ExtensionContext, ConfigurationChangeEvent, TextDocument, WorkspaceFolder } from 'vscode'
 import { uniq } from 'lodash'
 import { slash } from '@antfu/utils'
@@ -23,7 +23,9 @@ import { DetectionResult } from '~/core/types'
 
 export class Global {
   private static _loaders: Record<string, LocaleLoader> = {}
-  private static _rootpath: string
+  private static _currentWorkspaceRootPath: string
+  private static _currentActiveFilePath: string
+  private static _nearestEnabledFrameworkPath: string | undefined
   private static _enabled = false
   private static _currentWorkspaceFolder: WorkspaceFolder
 
@@ -32,23 +34,23 @@ export class Global {
   static reviews = new Reviews()
 
   // events
-  private static _onDidChangeRootPath: EventEmitter<string> = new EventEmitter()
+  private static _onDidChangeCurrentWorkspaceRootPath: EventEmitter<string> = new EventEmitter()
   private static _onDidChangeEnabled: EventEmitter<boolean> = new EventEmitter()
   private static _onDidChangeLoader: EventEmitter<LocaleLoader> = new EventEmitter()
 
-  static readonly onDidChangeRootPath: Event<string> = Global._onDidChangeRootPath.event
+  static readonly onDidChangeCurrentWorkspaceRootPath: Event<string> = Global._onDidChangeCurrentWorkspaceRootPath.event
   static readonly onDidChangeEnabled: Event<boolean> = Global._onDidChangeEnabled.event
   static readonly onDidChangeLoader: Event<LocaleLoader> = Global._onDidChangeLoader.event
 
   static async init(context: ExtensionContext) {
     this.context = context
 
-    context.subscriptions.push(workspace.onDidChangeWorkspaceFolders(() => this.updateRootPath()))
-    context.subscriptions.push(window.onDidChangeActiveTextEditor(() => this.updateRootPath()))
-    context.subscriptions.push(workspace.onDidOpenTextDocument(() => this.updateRootPath()))
-    context.subscriptions.push(workspace.onDidCloseTextDocument(() => this.updateRootPath()))
-    context.subscriptions.push(workspace.onDidChangeConfiguration(e => this.update(e)))
-    await this.updateRootPath()
+    context.subscriptions.push(workspace.onDidChangeWorkspaceFolders(() => this.updateRootPaths()))
+    context.subscriptions.push(window.onDidChangeActiveTextEditor(() => this.updateRootPaths()))
+    context.subscriptions.push(workspace.onDidOpenTextDocument(() => this.updateRootPaths()))
+    context.subscriptions.push(workspace.onDidCloseTextDocument(() => this.updateRootPaths()))
+    context.subscriptions.push(workspace.onDidChangeConfiguration(e => this.update({ event: e })))
+    await this.updateRootPaths()
   }
 
   // #region framework settings
@@ -261,33 +263,43 @@ export class Global {
 
   // #endregion
 
-  static get rootpath() {
-    return this._rootpath
+  static get currentWorkspaceRootPath() {
+    return this._currentWorkspaceRootPath
   }
 
-  private static async initLoader(rootpath: string, reload = false) {
-    if (!rootpath)
+  static get currentActiveFilePath() {
+    return this._currentActiveFilePath
+  }
+
+  static get nearestEnabledFrameworkPath() {
+    return this._nearestEnabledFrameworkPath
+  }
+
+  private static async initLoader(folderPath: string, reload = false) {
+    if (!folderPath)
       return
 
     // if (Config.debug)
     //  clearNotificationState(this.context)
     checkNotification(this.context)
 
-    if (this._loaders[rootpath] && !reload)
-      return this._loaders[rootpath]
+    if (this._loaders[folderPath] && !reload)
+      return this._loaders[folderPath]
 
-    const loader = new LocaleLoader(rootpath)
+    const loader = new LocaleLoader(folderPath)
     await loader.init()
     this.context.subscriptions.push(loader.onDidChange(() => this._onDidChangeLoader.fire(loader)))
     this.context.subscriptions.push(loader)
-    this._loaders[rootpath] = loader
+    this._loaders[folderPath] = loader
 
-    return this._loaders[rootpath]
+    return this._loaders[folderPath]
   }
 
-  private static async updateRootPath() {
+  private static async updateRootPaths() {
     const editor = window.activeTextEditor
-    let rootpath = ''
+    let currentWorkspaceRootPath = ''
+    let currentActiveFilePath = ''
+    let updateNeeded = false
 
     if (!editor || !workspace.workspaceFolders || workspace.workspaceFolders.length === 0)
       return
@@ -297,35 +309,51 @@ export class Global {
       const folder = workspace.getWorkspaceFolder(resource)
       if (folder) {
         this._currentWorkspaceFolder = folder
-        rootpath = folder.uri.fsPath
+        currentWorkspaceRootPath = folder.uri.fsPath
       }
+      currentActiveFilePath = path.dirname(resource.fsPath)
     }
 
-    if (!rootpath && workspace.rootPath)
-      rootpath = workspace.rootPath
+    if (!currentWorkspaceRootPath && workspace.rootPath)
+      currentWorkspaceRootPath = workspace.rootPath
 
-    if (rootpath && rootpath !== this._rootpath) {
-      this._rootpath = rootpath
+    if (currentWorkspaceRootPath && currentWorkspaceRootPath !== this._currentWorkspaceRootPath) {
+      this._currentWorkspaceRootPath = currentWorkspaceRootPath
 
       Log.divider()
-      Log.info(`💼 Workspace root changed to "${rootpath}"`)
-
-      await this.update()
-      this._onDidChangeRootPath.fire(rootpath)
-      this.reviews.init(rootpath)
+      Log.info(`💼 Workspace root changed to "${currentWorkspaceRootPath}"`)
+      updateNeeded = true
+      this._onDidChangeCurrentWorkspaceRootPath.fire(currentWorkspaceRootPath)
+      this.reviews.init(currentWorkspaceRootPath)
     }
+    if (currentActiveFilePath && currentActiveFilePath !== this._currentActiveFilePath) {
+      this._currentActiveFilePath = currentActiveFilePath
+      updateNeeded = true
+    }
+
+    if (updateNeeded)
+      await this.update({})
   }
 
-  static async update(e?: ConfigurationChangeEvent) {
+  static async update({
+    event,
+    workspaceRootPathChanged,
+    activeFilePathChanged
+  }: {
+    event?: ConfigurationChangeEvent
+    workspaceRootPathChanged?: boolean
+    activeFilePathChanged?: boolean
+  } = {},
+  ) {
     this.resetCache()
 
     let reload = false
-    if (e) {
+    if (event) {
       let affected = false
 
       for (const config of Config.reloadConfigs) {
         const key = `${EXT_NAMESPACE}.${config}`
-        if (e.affectsConfiguration(key)) {
+        if (event.affectsConfiguration(key)) {
           affected = true
           reload = true
           Log.info(`🧰 Config "${key}" changed, reloading`)
@@ -335,7 +363,7 @@ export class Global {
 
       for (const config of Config.refreshConfigs) {
         const key = `${EXT_NAMESPACE}.${config}`
-        if (e.affectsConfiguration(key)) {
+        if (event.affectsConfiguration(key)) {
           affected = true
           Log.info(`🧰 Config "${key}" changed`)
           break
@@ -344,7 +372,7 @@ export class Global {
 
       for (const config of Config.usageRefreshConfigs) {
         const key = `${EXT_NAMESPACE}.${config}`
-        if (e.affectsConfiguration(key)) {
+        if (event.affectsConfiguration(key)) {
           Analyst.refresh()
 
           Log.info(`🧰 Config "${key}" changed`)
@@ -360,12 +388,14 @@ export class Global {
     }
 
     if (!Config.enabledFrameworks) {
-      const packages = getPackageDependencies(this._rootpath)
-      this.enabledFrameworks = getEnabledFrameworks(packages, this._rootpath)
+      [this.enabledFrameworks, this._nearestEnabledFrameworkPath] = this.findNearestEnabledFrameworks(
+        this._currentWorkspaceRootPath,
+        this._currentActiveFilePath,
+      )
     }
     else {
       const frameworks = Config.enabledFrameworks
-      this.enabledFrameworks = getEnabledFrameworksByIds(frameworks, this._rootpath)
+      this.enabledFrameworks = getEnabledFrameworksByIds(frameworks, this._currentWorkspaceRootPath)
     }
     const isValidProject = this.enabledFrameworks.length > 0 && this.enabledParsers.length > 0
     const hasLocalesSet = !!Global.localesPaths
@@ -381,7 +411,7 @@ export class Global {
       Telemetry.track(TelemetryKey.Enabled)
       Telemetry.updateUserProperties()
 
-      await this.initLoader(this._rootpath, reload)
+      await this.initLoader(this._currentWorkspaceRootPath, reload)
     }
     else {
       if (!Config.disabled) {
@@ -398,13 +428,33 @@ export class Global {
     this._onDidChangeLoader.fire(this.loader)
   }
 
+  private static findNearestEnabledFrameworks(root: string, current: string): [Framework[], string | undefined] {
+    if (!current.startsWith(root))
+      return [[], undefined]
+
+    const subfolders = path.relative(root, current).split(path.sep)
+    const folders: string[] = []
+
+    for (let i = subfolders.length; i > 0; i--)
+      folders.push(path.join(root, ...subfolders.slice(0, i)))
+    folders.push(root)
+
+    for (const folder of folders) {
+      const packages = getPackageDependencies(folder)
+      const frameworks = getEnabledFrameworks(packages, folder)
+      if (frameworks.length)
+        return [frameworks, folder]
+    }
+    return [[], undefined]
+  }
+
   private static unloadAll() {
     Object.values(this._loaders).forEach(loader => loader.dispose())
     this._loaders = {}
   }
 
   static get loader() {
-    return this._loaders[this._rootpath]
+    return this._loaders[this._currentWorkspaceRootPath]
   }
 
   static get enabledParsers() {
