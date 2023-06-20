@@ -31,7 +31,7 @@ export class VueSfcLoader extends Loader {
     const filepath = this.filepath
     Log.info(`📑 Loading sfc ${filepath}`)
     const doc = await workspace.openTextDocument(this.uri)
-    const meta = this._meta = squeeze(Global.workspaceRootPath, this.getSFCFileInfo(doc))
+    const meta = this._meta = squeeze(Global.currentWorkspaceRootPath, this.getSFCFileInfo(doc))
     this._parsedSections = meta.components[filepath]
 
     this.updateLocalesTree()
@@ -110,7 +110,7 @@ export class VueSfcLoader extends Loader {
     }
 
     const doc = await workspace.openTextDocument(this.uri)
-    const [file] = infuse(Global.workspaceRootPath, this.getSFCFileInfo(doc), this._meta)
+    const [file] = infuse(Global.currentWorkspaceRootPath, this.getSFCFileInfo(doc), this._meta)
 
     if (doc.isDirty) {
       const edit = new WorkspaceEdit()

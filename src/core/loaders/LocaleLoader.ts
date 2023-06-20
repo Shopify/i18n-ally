@@ -123,6 +123,8 @@ export class LocaleLoader extends Loader {
 
     const dir = this._locale_dirs[0]
 
+    Log.raw(`🔍 Guessing directory structure of "${dir}"`)
+
     const dirnames = await fg('*', {
       onlyDirectories: true,
       cwd: dir,
@@ -390,6 +392,14 @@ export class LocaleLoader extends Loader {
     const fullpath = path.resolve(dirpath, relativePath)
     const ext = path.extname(relativePath)
 
+    Log.raw(`🔍 LocaleLoader.getFileInfo: ${JSON.stringify({
+      dirpath,
+      relativePath,
+      fullpath,
+      ext,
+      path_matchers: this._path_matchers,
+    }, null, 2)}`)
+
     let match: RegExpExecArray | null = null
     let matcher: string | undefined
 
@@ -401,18 +411,23 @@ export class LocaleLoader extends Loader {
       }
     }
 
-    if (!match || match.length < 1)
+    if (!match || match.length < 1) {
+      Log.raw(`🤷‍♀️ Unable to match ${relativePath}`)
       return
+    }
 
     let namespace = match.groups?.namespace
     if (namespace)
       namespace = namespace.replace(/\//g, '.')
 
     let locale = match.groups?.locale
+    Log.raw(`🔍 LocaleLoader.getFileInfo: (1) ${locale}`)
     if (locale)
       locale = Config.normalizeLocale(locale, '')
     else
       locale = Config.sourceLanguage
+
+    Log.raw(`🔍 LocaleLoader.getFileInfo: (2) ${locale}`)
 
     if (!locale)
       return
@@ -488,6 +503,8 @@ export class LocaleLoader extends Loader {
       ],
       deep: Config.includeSubfolders ? undefined : 2,
     })
+
+    Log.raw(`📁 LocaleLoader.loadDirectory (${searchingPath}): ${JSON.stringify(files, null, 2)}`)
 
     for (const relative of files)
       await this.loadFile(searchingPath, relative)
@@ -605,6 +622,7 @@ export class LocaleLoader extends Loader {
     this._files = {}
     this._locale_dirs = []
     const localesPaths = this.localesPaths
+    Log.raw(`\n📝 Finding locales paths under ${localesPaths}`)
     if (localesPaths?.length) {
       try {
         const _locale_dirs = await fg(localesPaths, {

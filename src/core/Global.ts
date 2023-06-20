@@ -253,11 +253,15 @@ export class Global {
     else
       config = Config._localesPaths
 
+    Log.raw(`\n📝 Global.localePaths: (1) ${config}`)
+
     if (!config) {
+      Log.raw('📝 Global.localePaths: about to check enabledFrameworks')
       config = this.enabledFrameworks.flatMap(f => f.perferredLocalePaths || [])
       if (!config.length)
         config = undefined
     }
+    Log.raw(`📝 Global.localePaths: (2) ${config}\n`)
     return config
   }
 
@@ -337,8 +341,8 @@ export class Global {
 
   static async update({
     event,
-    workspaceRootPathChanged,
-    activeFilePathChanged
+    // workspaceRootPathChanged,
+    // activeFilePathChanged
   }: {
     event?: ConfigurationChangeEvent
     workspaceRootPathChanged?: boolean
@@ -418,8 +422,15 @@ export class Global {
         if (!isValidProject && hasLocalesSet)
           Log.info('⚠ Current workspace is not a valid project, extension disabled')
 
-        if (isValidProject && !hasLocalesSet && Config.autoDetection)
+        if (isValidProject && !hasLocalesSet && Config.autoDetection) {
+          Log.raw(`📝 About to call autoset ${JSON.stringify({
+            currentWorkspaceRootPath: this._currentWorkspaceRootPath,
+            currentActiveFilePath: this._currentActiveFilePath,
+            nearestEnabledFrameworkPath: this._nearestEnabledFrameworkPath,
+          }, null, 2)}`)
           ConfigLocalesGuide.autoSet()
+          Log.raw(`📝 After autoset: ${Global.localesPaths}`)
+        }
       }
 
       this.unloadAll()

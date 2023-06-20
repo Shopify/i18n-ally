@@ -49,7 +49,7 @@ class RubyRailsFramework extends Framework {
 
   rewriteKeys(key: string, source: RewriteKeySource, context: RewriteKeyContext = {}) {
     if (source === 'reference' && key.startsWith('.') && context.targetFile) {
-      const root = path.resolve(Global.workspaceRootPath, Config.frameworksRubyRailsScopeRoot)
+      const root = path.resolve(Global.currentWorkspaceRootPath, Config.frameworksRubyRailsScopeRoot)
       let scope = path.relative(root, context.targetFile)
 
       scope = scope

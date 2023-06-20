@@ -3,7 +3,7 @@ import { Uri, workspace, window, commands } from 'vscode'
 import fg from 'fast-glob'
 import { Commands } from './commands'
 import { ExtensionModule } from '~/modules'
-import { Config } from '~/core'
+import { Config /*, Global */ } from '~/core'
 import i18n from '~/i18n'
 import { Log } from '~/utils'
 
@@ -59,6 +59,7 @@ export class ConfigLocalesGuide {
 
   static async autoSet() {
     const rootPath = workspace.rootPath
+    // const rootPath = Global.nearestEnabledFrameworkPath
     if (!rootPath)
       return
 
